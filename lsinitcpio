@@ -8,6 +8,8 @@ shopt -s extglob
 _list='--list'
 _optcolor=1
 _f_functions=functions
+_f_skipcpio=./skipcpio
+_tmp_files=()
 
 declare -A bsdcpio_options=(
     [list]='--list'
@@ -145,7 +147,7 @@ analyze_image() {
     local kernver ratio columns=$(tput cols) image=$1
 
     workdir=$(mktemp -d --tmpdir lsinitcpio.XXXXXX)
-    trap 'rm -rf "$workdir"' EXIT
+    _tmp_files+=("$workdir")
 
     # fallback in case tput failed us
     columns=${columns:-80}
@@ -188,7 +190,7 @@ analyze_image() {
     explicitmod=($MODULES)
 
     # print results
-    imagename=$_image
+    imagename=$_origimage
     [[ -L $_image ]] && imagename+=" -> $(readlink -e "$_image")"
     msg 'Image: %s %s' "$imagename"
     [[ $version ]] && msg 'Created with mkinitcpio %s' "$version"
@@ -239,6 +241,14 @@ analyze_image() {
         printf '  %s\n' $CLEANUPHOOKS
         printf '\n'
     fi
+
+    msg 'Contains early CPIO:'
+    if (( _hasearly )); then
+        printf '  yes\n'
+    else
+        printf '  no\n'
+    fi
+    printf '\n'
 }
 
 _opt_short='achlnVvx'
@@ -285,6 +295,8 @@ while :; do
 done
 
 _image=$1
+_origimage=$1
+_hasearly=0
 
 if [[ -t 1 ]] && (( _optcolor )); then
     try_enable_color
@@ -301,8 +313,21 @@ case $(( _optanalyze + _optlistcontents + _optshowconfig )) in
         die "Only one action may be specified at a time" ;;
 esac
 
+trap '(( ${#_tmp_files[@]} )) && rm -rf "${_tmp_files[@]}"' EXIT
+
 # read compression type
 _compress=$(detect_filetype "$_image") || exit
+
+if decomp "$_image" | bsdcpio -i --quiet --list | grep -q '^early_cpio'; then
+    _hasearly=1
+    _real_image=$(mktemp --tmpdir lsinitcpio.XXXXXX)
+    _tmp_files+=("$_real_image")
+    "$_f_skipcpio" "$_image" > "$_real_image"
+    _image="$_real_image"
+    # read compression type again for real image
+    _compress=$(detect_filetype "$_image") || exit
+fi
+
 
 if (( _optanalyze )); then
     analyze_image "$_image"

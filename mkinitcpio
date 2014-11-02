@@ -220,19 +220,38 @@ build_image() {
         cpio_opts+=('-R' '0:0')
     fi
 
-    pushd "$BUILDROOT" >/dev/null
-    find -mindepth 1 -printf '%P\0' |
-            LANG=C bsdcpio "${cpio_opts[@]}" |
-            $compress "${COMPRESSION_OPTIONS[@]}" > "$out"
-    pipesave=("${PIPESTATUS[@]}") # save immediately
-    popd >/dev/null
+    # Create empty file.
+    > "$out"
+    # early_root should not be compressed.
+    if [[ -d "$BUILDROOT/early_root" ]]; then
+        pushd "$BUILDROOT/early_root" >/dev/null
+        touch "$BUILDROOT/early_root/early_cpio"
+        find . -mindepth 1 -printf '%P\0' |
+                LANG=C bsdcpio "${cpio_opts[@]}" >> "$out"
+        popd >/dev/null
+        pipesave=("${PIPESTATUS[@]}") # save immediately
+        if (( pipesave[0] )); then
+            errmsg="find reported an error"
+        elif (( pipesave[1] )); then
+            errmsg="bsdcpio reported an error"
+        fi
+    fi
 
-    if (( pipesave[0] )); then
-        errmsg="find reported an error"
-    elif (( pipesave[1] )); then
-        errmsg="bsdcpio reported an error"
-    elif (( pipesave[2] )); then
-        errmsg="$compress reported an error"
+    if [[ ! $errmsg ]]; then
+        pushd "$BUILDROOT" >/dev/null
+        find . -mindepth 1 -path "./early_root" -prune -o -printf '%P\0' |
+                LANG=C bsdcpio "${cpio_opts[@]}" |
+                $compress "${COMPRESSION_OPTIONS[@]}" >> "$out"
+        pipesave=("${PIPESTATUS[@]}") # save immediately
+        popd >/dev/null
+
+        if (( pipesave[0] )); then
+            errmsg="find reported an error"
+        elif (( pipesave[1] )); then
+            errmsg="bsdcpio reported an error"
+        elif (( pipesave[2] )); then
+            errmsg="$compress reported an error"
+        fi
     fi
 
     if (( _builderrors )); then
