@@ -1,0 +1,31 @@
+#!/bin/bash
+#
+# skipcpio - skip current uncompressed cpio part
+#
+
+shopt -s extglob
+
+_f_functions=functions
+
+. "$_f_functions"
+
+die() {
+    error "$@"
+    exit 1
+}
+
+_image=$1
+[[ $_image ]] || die "No image specified"
+[[ -f $_image ]] || die "No such file: %s" "$_image"
+
+_CPIO_END='TRAILER!!!'
+
+# check if it's a cpio file
+if [[ $(hexdump -n 6 -e '"%c"' "$1") = '070701' ]]; then
+    offset=$(grep -m 1 --byte-offset --only-matching --text $_CPIO_END "$1")
+    offset=$(( ${offset%%:$_CPIO_END} + ${#_CPIO_END} ))
+    # skip zero byte at the begining
+    dd if=$1 bs=$offset skip=1 2>/dev/null | sed '1 s/^\x00*//'
+else
+    exec cat $1
+fi

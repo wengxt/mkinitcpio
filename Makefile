@@ -40,10 +40,15 @@ install: all
 	    < mkinitcpio > $(DESTDIR)/usr/bin/mkinitcpio
 
 	sed -e 's|\(^_f_functions\)=.*|\1=/usr/lib/initcpio/functions|' \
+	    -e 's|\(^_f_skipcpio\)=.*|\1=/usr/lib/initcpio/skipcpio|' \
 	    -e 's|%VERSION%|$(VERSION)|g' \
 	    < lsinitcpio > $(DESTDIR)/usr/bin/lsinitcpio
 
-	chmod 755 $(DESTDIR)/usr/bin/lsinitcpio $(DESTDIR)/usr/bin/mkinitcpio
+	sed -e 's|\(^_f_functions\)=.*|\1=/usr/lib/initcpio/functions|' \
+	    < skipcpio > $(DESTDIR)/usr/lib/initcpio/skipcpio
+
+	chmod 755 $(DESTDIR)/usr/bin/lsinitcpio $(DESTDIR)/usr/bin/mkinitcpio \
+			  $(DESTDIR)/usr/lib/initcpio/skipcpio
 
 	install -m644 mkinitcpio.conf $(DESTDIR)/etc/mkinitcpio.conf
 	install -m755 -t $(DESTDIR)/usr/lib/initcpio init shutdown

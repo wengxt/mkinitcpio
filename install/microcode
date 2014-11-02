@@ -1,0 +1,24 @@
+#!/bin/bash
+
+build() {
+    ucode_dir=(amd-ucode intel-ucode)
+    ucode_dest=(AuthenticAMD.bin GenuineIntel.bin)
+
+    for idx in 0 1; do
+        fw=${ucode_dir[$idx]}
+        for fwpath in "${_d_firmware[@]}"; do
+            if [[ -d $fwpath/$fw ]]; then
+                add_dir '/early_root/kernel/x86/microcode'
+                cat $fwpath/$fw/* > $BUILDROOT/early_root/kernel/x86/microcode/${ucode_dest[$idx]}
+            fi
+        done
+    done
+}
+
+help() {
+    cat <<HELPEOF
+This hook generate early ucode update
+HELPEOF
+}
+
+# vim: set ft=sh ts=4 sw=4 et:
